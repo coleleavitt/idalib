@@ -536,10 +536,28 @@ impl IDB {
         if success { Some((bytes, mask)) } else { None }
     }
 
+    /// Search for a binary pattern with a mask.
+    ///
+    /// # Arguments
+    /// * `bytes` - The byte pattern to search for
+    /// * `mask` - The mask indicating which bytes to match (must be same length as `bytes`)
+    ///
+    /// # Returns
+    /// The address of the first match, or `None` if not found or if `bytes` and `mask` have different lengths.
     pub fn find_binary(&self, bytes: &[u8], mask: &[u8]) -> Option<Address> {
         self.find_binary_range(bytes, mask, 0, u64::MAX)
     }
 
+    /// Search for a binary pattern with a mask within a specific address range.
+    ///
+    /// # Arguments
+    /// * `bytes` - The byte pattern to search for
+    /// * `mask` - The mask indicating which bytes to match (must be same length as `bytes`)
+    /// * `start_ea` - Start address of the search range
+    /// * `end_ea` - End address of the search range
+    ///
+    /// # Returns
+    /// The address of the first match, or `None` if not found or if `bytes` and `mask` have different lengths.
     pub fn find_binary_range(
         &self,
         bytes: &[u8],
@@ -673,8 +691,32 @@ impl IDB {
         self.find_plugin(name, true)
     }
 
+    /// Returns an iterator over all imports in the database.
+    ///
+    /// The iterator uses lazy loading - imports are fetched module-by-module
+    /// as you iterate, rather than loading everything into memory upfront.
     pub fn imports(&self) -> ImportIterator {
         ImportIterator::new()
+    }
+
+    /// Returns the number of import modules in the database.
+    ///
+    /// This is a cheap operation that doesn't require loading any imports.
+    /// Useful for checking if there are imports before iterating, or for
+    /// pre-allocating collections.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use idalib::IDB;
+    /// # let idb = IDB::open("/path/to/binary").unwrap();
+    /// if idb.import_module_count() > 0 {
+    ///     for import in idb.imports() {
+    ///         println!("{}: {}", import.module_name, import.function_name);
+    ///     }
+    /// }
+    /// ```
+    pub fn import_module_count(&self) -> u32 {
+        unsafe { crate::ffi::nalt::idalib_get_import_module_qty() }
     }
 }
 

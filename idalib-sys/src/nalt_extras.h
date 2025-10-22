@@ -37,6 +37,39 @@ static int import_enum_callback(ea_t ea, const char *name, uval_t ordinal, void 
   return 1;
 }
 
+// Get total number of import modules
+uint32_t idalib_get_import_module_qty() {
+  return get_import_module_qty();
+}
+
+// Get import module name by index
+rust::String idalib_get_import_module_name(uint32_t idx) {
+  qstring module_name;
+  if (get_import_module_name(&module_name, idx)) {
+    return rust::String(module_name.c_str());
+  }
+  return rust::String();
+}
+
+// Get all imports for a specific module (by index)
+void idalib_get_imports_for_module(
+    uint32_t module_idx,
+    rust::Vec<rust::String> &import_names,
+    rust::Vec<uint64_t> &addresses,
+    rust::Vec<uint32_t> &ordinals) {
+
+  qstring module_name;
+  if (!get_import_module_name(&module_name, module_idx)) {
+    return;
+  }
+
+  // Temporary vectors to hold module names (not needed for single module)
+  rust::Vec<rust::String> temp_module_names;
+  import_ctx ctx{module_name, temp_module_names, import_names, addresses, ordinals};
+  enum_import_names(module_idx, import_enum_callback, static_cast<void *>(&ctx));
+}
+
+// Legacy function: Get all imports eagerly (kept for backward compatibility)
 bool idalib_get_imports(rust::Vec<rust::String> &module_names, rust::Vec<rust::String> &import_names, rust::Vec<uint64_t> &addresses, rust::Vec<uint32_t> &ordinals) {
   for (uint32_t idx = 0; idx < get_import_module_qty(); idx++) {
     qstring module_name;
