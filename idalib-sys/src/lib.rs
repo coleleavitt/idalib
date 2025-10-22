@@ -59,20 +59,30 @@ include_cpp! {
 
     #include "auto.hpp"
     #include "bytes.hpp"
+    #include "dbg.hpp"
+    #include "demangle.hpp"
     #include "entry.hpp"
+    #include "fixup.hpp"
+    #include "frame.hpp"
     #include "funcs.hpp"
     #include "gdl.hpp"
     #include "hexrays.hpp"
     #include "ida.hpp"
     #include "idalib.hpp"
     #include "idp.hpp"
+    #include "jumptable.hpp"
     #include "loader.hpp"
     #include "moves.hpp"
     #include "nalt.hpp"
     #include "name.hpp"
+    #include "offset.hpp"
     #include "pro.h"
+    #include "problems.hpp"
     #include "segment.hpp"
+    #include "segregs.hpp"
     #include "strlist.hpp"
+    #include "tryblks.hpp"
+    #include "typeinf.hpp"
     #include "ua.hpp"
     #include "xref.hpp"
 
@@ -242,6 +252,9 @@ include_cpp! {
     generate!("getnseg")
     generate!("get_segm_qty")
     generate!("get_segm_by_name")
+    generate!("get_first_seg")
+    generate!("get_last_seg")
+    generate!("get_next_seg")
 
     generate!("SEG_NORM")
     generate!("SEG_XTRN")
@@ -346,6 +359,8 @@ include_cpp! {
     generate!("XREF_PASTEND")
 
     generate!("has_external_refs")
+    generate!("get_first_dref_to")
+    generate!("get_next_dref_to")
 
     // comments
     generate!("set_cmt")
@@ -385,6 +400,23 @@ include_cpp! {
     generate!("is_in_nlist")
     generate!("is_public_name")
     generate!("is_weak_name")
+
+    // name flags
+    generate!("SN_CHECK")
+    generate!("SN_NOCHECK")
+    generate!("SN_PUBLIC")
+    generate!("SN_NON_PUBLIC")
+    generate!("SN_WEAK")
+    generate!("SN_NON_WEAK")
+    generate!("SN_AUTO")
+    generate!("SN_NON_AUTO")
+    generate!("SN_NOLIST")
+    generate!("SN_NOWARN")
+    generate!("SN_LOCAL")
+    generate!("SN_IDBENC")
+    generate!("SN_FORCE")
+    generate!("SN_NODUMMY")
+    generate!("SN_DELTAIL")
 }
 
 pub mod hexrays {
@@ -726,19 +758,29 @@ mod ffix {
         include!("bookmarks_extras.h");
         include!("bytes_extras.h");
         include!("comments_extras.h");
+        include!("dbg_extras.h");
+        include!("demangle_extras.h");
         include!("entry_extras.h");
+        include!("fixup_extras.h");
+        include!("frame_extras.h");
         include!("func_extras.h");
         include!("hexrays_extras.h");
         include!("idalib_extras.h");
         include!("inf_extras.h");
+        include!("jumptable_extras.h");
         include!("kernwin_extras.h");
         include!("loader_extras.h");
         include!("nalt_extras.h");
+        include!("offset_extras.h");
         include!("ph_extras.h");
         include!("name_extras.h");
+        include!("problems_extras.h");
         include!("segm_extras.h");
         include!("search_extras.h");
+        include!("segregs_extras.h");
         include!("strings_extras.h");
+        include!("tryblks_extras.h");
+        include!("typeinf_extras.h");
 
         type c_short = autocxx::c_short;
         type c_int = autocxx::c_int;
@@ -1020,10 +1062,25 @@ mod ffix {
         unsafe fn idalib_find_text(ea: c_ulonglong, text: *const c_char) -> c_ulonglong;
         unsafe fn idalib_find_imm(ea: c_ulonglong, imm: c_uint) -> c_ulonglong;
         unsafe fn idalib_find_defined(ea: c_ulonglong) -> c_ulonglong;
-        
-        unsafe fn idalib_bin_search(start_ea: c_ulonglong, end_ea: c_ulonglong, pattern: *const c_char, flags: c_int) -> c_ulonglong;
-        unsafe fn idalib_parse_binpat_str(pattern: *const c_char, out_bytes: &mut Vec<u8>, out_mask: &mut Vec<u8>) -> bool;
-        unsafe fn idalib_find_binary(start_ea: c_ulonglong, end_ea: c_ulonglong, bytes: *const u8, mask: *const u8, len: usize) -> c_ulonglong;
+
+        unsafe fn idalib_bin_search(
+            start_ea: c_ulonglong,
+            end_ea: c_ulonglong,
+            pattern: *const c_char,
+            flags: c_int,
+        ) -> c_ulonglong;
+        unsafe fn idalib_parse_binpat_str(
+            pattern: *const c_char,
+            out_bytes: &mut Vec<u8>,
+            out_mask: &mut Vec<u8>,
+        ) -> bool;
+        unsafe fn idalib_find_binary(
+            start_ea: c_ulonglong,
+            end_ea: c_ulonglong,
+            bytes: *const u8,
+            mask: *const u8,
+            len: usize,
+        ) -> c_ulonglong;
 
         unsafe fn idalib_get_strlist_item_addr(index: usize) -> c_ulonglong;
         unsafe fn idalib_get_strlist_item_length(index: usize) -> usize;
@@ -1058,6 +1115,187 @@ mod ffix {
             build: *mut c_int,
         ) -> bool;
         unsafe fn idalib_get_ea_name(ea: c_ulonglong) -> String;
+        unsafe fn idalib_set_ea_name(ea: c_ulonglong, name: *const c_char, flags: i32) -> bool;
+        unsafe fn idalib_force_ea_name(ea: c_ulonglong, name: *const c_char) -> bool;
+        unsafe fn idalib_del_global_name(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_del_local_name(ea: c_ulonglong) -> bool;
+
+        // Type info functions
+        unsafe fn idalib_get_tinfo(ea: c_ulonglong) -> String;
+        unsafe fn idalib_set_tinfo_from_string(ea: c_ulonglong, decl: *const c_char) -> bool;
+        unsafe fn idalib_del_tinfo(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_print_type(ea: c_ulonglong, prtype_flags: c_int) -> String;
+        unsafe fn idalib_parse_decl_type(decl: *const c_char) -> String;
+        unsafe fn idalib_parse_decl_name(decl: *const c_char) -> String;
+        unsafe fn idalib_get_named_type(name: *const c_char) -> String;
+        unsafe fn idalib_set_named_type(name: *const c_char, decl: *const c_char) -> bool;
+        unsafe fn idalib_get_numbered_type(ordinal: u32) -> String;
+        unsafe fn idalib_get_func_tinfo(ea: c_ulonglong) -> String;
+        unsafe fn idalib_guess_func_tinfo(ea: c_ulonglong) -> String;
+        unsafe fn idalib_apply_tinfo(ea: c_ulonglong, decl: *const c_char) -> bool;
+        unsafe fn idalib_get_type_size(ea: c_ulonglong) -> usize;
+        unsafe fn idalib_has_tinfo(ea: c_ulonglong) -> bool;
+
+        // Offset functions
+        unsafe fn idalib_op_offset(ea: c_ulonglong, n: c_int, base: c_ulonglong) -> bool;
+        unsafe fn idalib_op_offset_ex(
+            ea: c_ulonglong,
+            n: c_int,
+            reftype: c_int,
+            target: c_ulonglong,
+            base: c_ulonglong,
+            tdelta: c_ulonglong,
+        ) -> bool;
+        unsafe fn idalib_get_offset_expression(ea: c_ulonglong, n: c_int) -> String;
+        unsafe fn idalib_calc_offset_base(ea: c_ulonglong, n: c_int) -> c_ulonglong;
+        unsafe fn idalib_get_default_reftype(ea: c_ulonglong) -> c_int;
+        unsafe fn idalib_can_be_off32(ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_calc_probable_base(ea: c_ulonglong, off: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_calc_reference_target(ea: c_ulonglong, n: c_int) -> c_ulonglong;
+        unsafe fn idalib_calc_reference_base(ea: c_ulonglong, n: c_int) -> c_ulonglong;
+
+        // Demangle functions
+        unsafe fn idalib_demangle_name(mangled: *const c_char, disable_mask: u32) -> String;
+        unsafe fn idalib_demangle_name_long(mangled: *const c_char) -> String;
+        unsafe fn idalib_demangle_name_short(mangled: *const c_char) -> String;
+        unsafe fn idalib_can_demangle(mangled: *const c_char) -> i32;
+        unsafe fn idalib_demangle_name_at(ea: c_ulonglong, disable_mask: u32) -> String;
+        unsafe fn idalib_demangle_name_at_long(ea: c_ulonglong) -> String;
+
+        // Jump table functions
+        unsafe fn idalib_get_switch_info(ea: c_ulonglong) -> String;
+        unsafe fn idalib_is_switch(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_get_jump_table_addr(ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_get_switch_case_count(ea: c_ulonglong) -> c_int;
+        unsafe fn idalib_get_switch_default(ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_get_switch_parent(ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_del_switch_info(ea: c_ulonglong);
+        unsafe fn idalib_check_for_table_jump(ea: c_ulonglong) -> bool;
+
+        // Segment register functions
+        unsafe fn idalib_get_sreg(ea: c_ulonglong, rg: c_int) -> c_ulonglong;
+        unsafe fn idalib_split_sreg_range(
+            ea: c_ulonglong,
+            rg: c_int,
+            v: c_ulonglong,
+            tag: u8,
+            silent: bool,
+        ) -> bool;
+        unsafe fn idalib_set_default_sreg_value(
+            seg_start: c_ulonglong,
+            rg: c_int,
+            value: c_ulonglong,
+        ) -> bool;
+        unsafe fn idalib_set_default_sreg_value_all(rg: c_int, value: c_ulonglong) -> bool;
+        unsafe fn idalib_set_default_dataseg(ds_sel: c_ulonglong);
+        unsafe fn idalib_set_sreg_at_next_code(
+            ea1: c_ulonglong,
+            ea2: c_ulonglong,
+            rg: c_int,
+            value: c_ulonglong,
+        );
+        unsafe fn idalib_get_sreg_range(ea: c_ulonglong, rg: c_int) -> String;
+        unsafe fn idalib_get_prev_sreg_range(ea: c_ulonglong, rg: c_int) -> String;
+        unsafe fn idalib_get_sreg_ranges_qty(rg: c_int) -> usize;
+        unsafe fn idalib_getn_sreg_range(rg: c_int, n: c_int) -> String;
+        unsafe fn idalib_get_sreg_range_num(ea: c_ulonglong, rg: c_int) -> c_int;
+        unsafe fn idalib_del_sreg_range(ea: c_ulonglong, rg: c_int) -> bool;
+        unsafe fn idalib_copy_sreg_ranges(dst_rg: c_int, src_rg: c_int, map_selector: bool);
+
+        // Try block (exception handling) functions
+        unsafe fn idalib_get_tryblks(start_ea: c_ulonglong, end_ea: c_ulonglong) -> String;
+        unsafe fn idalib_get_tryblks_count(start_ea: c_ulonglong, end_ea: c_ulonglong) -> usize;
+        unsafe fn idalib_del_tryblks(start_ea: c_ulonglong, end_ea: c_ulonglong);
+        unsafe fn idalib_find_syseh(ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_is_ea_tryblks(ea: c_ulonglong, flags: u32) -> bool;
+        unsafe fn idalib_is_ea_cpp_try(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_is_ea_cpp_catch(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_is_ea_seh_try(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_is_ea_seh_handler(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_is_ea_seh_filter(ea: c_ulonglong) -> bool;
+
+        // Debugger interface functions
+        unsafe fn idalib_is_debugger_on() -> bool;
+        unsafe fn idalib_is_debugger_memory(ea: c_ulonglong) -> bool;
+        unsafe fn idalib_get_dbg_byte(ea: c_ulonglong, out: *mut u32) -> bool;
+        unsafe fn idalib_get_dbg_byte_value(ea: c_ulonglong) -> i32;
+        unsafe fn idalib_put_dbg_byte(ea: c_ulonglong, x: u32) -> bool;
+        unsafe fn idalib_invalidate_dbgmem_config();
+        unsafe fn idalib_invalidate_dbgmem_contents(ea: c_ulonglong, size: c_ulonglong);
+        unsafe fn idalib_lock_dbgmem_config();
+        unsafe fn idalib_unlock_dbgmem_config();
+        unsafe fn idalib_get_dbg_bytes(ea: c_ulonglong, size: usize) -> String;
+        unsafe fn idalib_get_debugger_status() -> String;
+
+        // Frame (stack frame analysis) functions
+        unsafe fn idalib_add_frame(
+            func_ea: c_ulonglong,
+            frsize: c_longlong,
+            frregs: u16,
+            argsize: c_ulonglong,
+        ) -> bool;
+        unsafe fn idalib_del_frame(func_ea: c_ulonglong) -> bool;
+        unsafe fn idalib_set_frame_size(
+            func_ea: c_ulonglong,
+            frsize: c_ulonglong,
+            frregs: u16,
+            argsize: c_ulonglong,
+        ) -> bool;
+        unsafe fn idalib_get_frame_size(func_ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_get_frame_retsize(func_ea: c_ulonglong) -> c_int;
+        unsafe fn idalib_get_frame_part(func_ea: c_ulonglong, part: c_int) -> String;
+        unsafe fn idalib_get_func_frame(func_ea: c_ulonglong) -> String;
+        unsafe fn idalib_build_stkvar_name(func_ea: c_ulonglong, offset: c_longlong) -> String;
+        unsafe fn idalib_get_spd(func_ea: c_ulonglong, ea: c_ulonglong) -> c_longlong;
+        unsafe fn idalib_get_effective_spd(func_ea: c_ulonglong, ea: c_ulonglong) -> c_longlong;
+        unsafe fn idalib_get_sp_delta(func_ea: c_ulonglong, ea: c_ulonglong) -> c_longlong;
+        unsafe fn idalib_add_auto_stkpnt(
+            func_ea: c_ulonglong,
+            ea: c_ulonglong,
+            delta: c_longlong,
+        ) -> bool;
+        unsafe fn idalib_add_user_stkpnt(ea: c_ulonglong, delta: c_longlong) -> bool;
+        unsafe fn idalib_del_stkpnt(func_ea: c_ulonglong, ea: c_ulonglong) -> bool;
+        unsafe fn idalib_get_frame_info(func_ea: c_ulonglong) -> String;
+        unsafe fn idalib_delete_wrong_frame_info(func_ea: c_ulonglong) -> c_int;
+        unsafe fn idalib_recalc_spd(ea: c_ulonglong) -> bool;
+
+        // Fixup (relocations/fixups) functions
+        unsafe fn idalib_exists_fixup(source: c_ulonglong) -> bool;
+        unsafe fn idalib_get_fixup(source: c_ulonglong) -> String;
+        unsafe fn idalib_del_fixup(source: c_ulonglong);
+        unsafe fn idalib_get_first_fixup_ea() -> c_ulonglong;
+        unsafe fn idalib_get_next_fixup_ea(ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_get_prev_fixup_ea(ea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_apply_fixup(
+            item_ea: c_ulonglong,
+            fixup_ea: c_ulonglong,
+            n: c_int,
+            is_macro: bool,
+        ) -> bool;
+        unsafe fn idalib_get_fixup_value(ea: c_ulonglong, fixup_type: u16) -> c_ulonglong;
+        unsafe fn idalib_calc_fixup_size(fixup_type: u16) -> c_int;
+        unsafe fn idalib_get_fixup_desc(fixup_type: u16) -> String;
+        unsafe fn idalib_enumerate_fixups(start_ea: c_ulonglong, end_ea: c_ulonglong) -> String;
+        unsafe fn idalib_get_fixups_in_range(ea: c_ulonglong, size: c_ulonglong) -> String;
+        unsafe fn idalib_count_fixups() -> usize;
+
+        // Problems (problem tracking) functions
+        unsafe fn idalib_get_problem_desc(prob_type: u8, ea: c_ulonglong) -> String;
+        unsafe fn idalib_remember_problem(prob_type: u8, ea: c_ulonglong, msg: *const c_char);
+        unsafe fn idalib_remember_problem_simple(prob_type: u8, ea: c_ulonglong);
+        unsafe fn idalib_get_problem(prob_type: u8, lowea: c_ulonglong) -> c_ulonglong;
+        unsafe fn idalib_forget_problem(prob_type: u8, ea: c_ulonglong) -> bool;
+        unsafe fn idalib_get_problem_name(prob_type: u8) -> String;
+        unsafe fn idalib_get_problem_name_short(prob_type: u8) -> String;
+        unsafe fn idalib_is_problem_present(prob_type: u8, ea: c_ulonglong) -> bool;
+        unsafe fn idalib_enumerate_problems(
+            prob_type: u8,
+            start_ea: c_ulonglong,
+            end_ea: c_ulonglong,
+        ) -> String;
+        unsafe fn idalib_enumerate_all_problems() -> String;
+        unsafe fn idalib_get_problems_at(ea: c_ulonglong) -> String;
     }
 }
 
@@ -1170,10 +1408,10 @@ pub mod segment {
     pub use super::ffi::{
         SEG_ABSSYM, SEG_BSS, SEG_CODE, SEG_COMM, SEG_DATA, SEG_GRP, SEG_IMEM, SEG_IMP,
         SEG_MAX_SEGTYPE_CODE, SEG_NORM, SEG_NULL, SEG_UNDF, SEG_XTRN, SEGPERM_EXEC, SEGPERM_MAXVAL,
-        SEGPERM_READ, SEGPERM_WRITE, get_segm_by_name, get_segm_qty, getnseg, getseg, lock_segment,
-        saAbs, saGroup, saRel_MAX_ALIGN_CODE, saRel4K, saRel32Bytes, saRel64Bytes, saRel128Bytes,
-        saRel512Bytes, saRel1024Bytes, saRel2048Bytes, saRelByte, saRelDble, saRelPage, saRelPara,
-        saRelQword, saRelWord, segment_t,
+        SEGPERM_READ, SEGPERM_WRITE, get_first_seg, get_last_seg, get_next_seg, get_segm_by_name,
+        get_segm_qty, getnseg, getseg, lock_segment, saAbs, saGroup, saRel_MAX_ALIGN_CODE, saRel4K,
+        saRel32Bytes, saRel64Bytes, saRel128Bytes, saRel512Bytes, saRel1024Bytes, saRel2048Bytes,
+        saRelByte, saRelDble, saRelPage, saRelPara, saRelQword, saRelWord, segment_t,
     };
 
     pub use super::ffix::{
@@ -1201,9 +1439,14 @@ pub mod util {
 pub mod xref {
     pub use super::ffi::{
         XREF_ALL, XREF_BASE, XREF_DATA, XREF_FAR, XREF_MASK, XREF_PASTEND, XREF_TAIL, XREF_USER,
-        cref_t, dref_t, has_external_refs, xrefblk_t, xrefblk_t_first_from, xrefblk_t_first_to,
-        xrefblk_t_next_from, xrefblk_t_next_to,
+        cref_t, dref_t, get_first_dref_to, get_next_dref_to, has_external_refs, xrefblk_t,
+        xrefblk_t_first_from, xrefblk_t_first_to, xrefblk_t_next_from, xrefblk_t_next_to,
     };
+
+    // These are #define constants from xref.hpp that aren't exported by autocxx
+    pub const XREF_FLOW: i32 = 0x00;
+    pub const XREF_NOFLOW: i32 = 0x01;
+    pub const XREF_CODE: i32 = 0x04;
 }
 
 pub mod comments {
@@ -1224,8 +1467,8 @@ pub mod bookmarks {
 
 pub mod search {
     pub use super::ffix::{
-        idalib_find_defined, idalib_find_imm, idalib_find_text,
-        idalib_bin_search, idalib_parse_binpat_str, idalib_find_binary,
+        idalib_bin_search, idalib_find_binary, idalib_find_defined, idalib_find_imm,
+        idalib_find_text, idalib_parse_binpat_str,
     };
 }
 
@@ -1258,10 +1501,102 @@ pub mod nalt {
 
 pub mod name {
     pub use super::ffi::{
+        SN_AUTO, SN_CHECK, SN_DELTAIL, SN_FORCE, SN_IDBENC, SN_LOCAL, SN_NOCHECK, SN_NODUMMY,
+        SN_NOLIST, SN_NON_AUTO, SN_NON_PUBLIC, SN_NON_WEAK, SN_NOWARN, SN_PUBLIC, SN_WEAK,
         get_nlist_ea, get_nlist_idx, get_nlist_name, get_nlist_size, is_in_nlist, is_public_name,
         is_weak_name,
     };
-    pub use super::ffix::idalib_get_ea_name;
+    pub use super::ffix::{
+        idalib_del_global_name, idalib_del_local_name, idalib_force_ea_name, idalib_get_ea_name,
+        idalib_set_ea_name,
+    };
+}
+
+pub mod typeinf {
+    pub use super::ffix::{
+        idalib_apply_tinfo, idalib_del_tinfo, idalib_get_func_tinfo, idalib_get_named_type,
+        idalib_get_numbered_type, idalib_get_tinfo, idalib_get_type_size, idalib_guess_func_tinfo,
+        idalib_has_tinfo, idalib_parse_decl_name, idalib_parse_decl_type, idalib_print_type,
+        idalib_set_named_type, idalib_set_tinfo_from_string,
+    };
+}
+
+pub mod offset {
+    pub use super::ffix::{
+        idalib_calc_offset_base, idalib_calc_probable_base, idalib_calc_reference_base,
+        idalib_calc_reference_target, idalib_can_be_off32, idalib_get_default_reftype,
+        idalib_get_offset_expression, idalib_op_offset, idalib_op_offset_ex,
+    };
+}
+
+pub mod demangle {
+    pub use super::ffix::{
+        idalib_can_demangle, idalib_demangle_name, idalib_demangle_name_at,
+        idalib_demangle_name_at_long, idalib_demangle_name_long, idalib_demangle_name_short,
+    };
+}
+
+pub mod jumptable {
+    pub use super::ffix::{
+        idalib_check_for_table_jump, idalib_del_switch_info, idalib_get_jump_table_addr,
+        idalib_get_switch_case_count, idalib_get_switch_default, idalib_get_switch_info,
+        idalib_get_switch_parent, idalib_is_switch,
+    };
+}
+
+pub mod segregs {
+    pub use super::ffix::{
+        idalib_copy_sreg_ranges, idalib_del_sreg_range, idalib_get_prev_sreg_range,
+        idalib_get_sreg, idalib_get_sreg_range, idalib_get_sreg_range_num,
+        idalib_get_sreg_ranges_qty, idalib_getn_sreg_range, idalib_set_default_dataseg,
+        idalib_set_default_sreg_value, idalib_set_default_sreg_value_all,
+        idalib_set_sreg_at_next_code, idalib_split_sreg_range,
+    };
+}
+
+pub mod tryblks {
+    pub use super::ffix::{
+        idalib_del_tryblks, idalib_find_syseh, idalib_get_tryblks, idalib_get_tryblks_count,
+        idalib_is_ea_cpp_catch, idalib_is_ea_cpp_try, idalib_is_ea_seh_filter,
+        idalib_is_ea_seh_handler, idalib_is_ea_seh_try, idalib_is_ea_tryblks,
+    };
+}
+
+pub mod dbg {
+    pub use super::ffix::{
+        idalib_get_dbg_byte, idalib_get_dbg_byte_value, idalib_get_dbg_bytes,
+        idalib_get_debugger_status, idalib_invalidate_dbgmem_config,
+        idalib_invalidate_dbgmem_contents, idalib_is_debugger_memory, idalib_is_debugger_on,
+        idalib_lock_dbgmem_config, idalib_put_dbg_byte, idalib_unlock_dbgmem_config,
+    };
+}
+
+pub mod frame {
+    pub use super::ffix::{
+        idalib_add_auto_stkpnt, idalib_add_frame, idalib_add_user_stkpnt, idalib_build_stkvar_name,
+        idalib_del_frame, idalib_del_stkpnt, idalib_delete_wrong_frame_info,
+        idalib_get_effective_spd, idalib_get_frame_info, idalib_get_frame_part,
+        idalib_get_frame_retsize, idalib_get_frame_size, idalib_get_func_frame,
+        idalib_get_sp_delta, idalib_get_spd, idalib_recalc_spd, idalib_set_frame_size,
+    };
+}
+
+pub mod fixup {
+    pub use super::ffix::{
+        idalib_apply_fixup, idalib_calc_fixup_size, idalib_count_fixups, idalib_del_fixup,
+        idalib_enumerate_fixups, idalib_exists_fixup, idalib_get_first_fixup_ea, idalib_get_fixup,
+        idalib_get_fixup_desc, idalib_get_fixup_value, idalib_get_fixups_in_range,
+        idalib_get_next_fixup_ea, idalib_get_prev_fixup_ea,
+    };
+}
+
+pub mod problems {
+    pub use super::ffix::{
+        idalib_enumerate_all_problems, idalib_enumerate_problems, idalib_forget_problem,
+        idalib_get_problem, idalib_get_problem_desc, idalib_get_problem_name,
+        idalib_get_problem_name_short, idalib_get_problems_at, idalib_is_problem_present,
+        idalib_remember_problem, idalib_remember_problem_simple,
+    };
 }
 
 pub mod ida {
